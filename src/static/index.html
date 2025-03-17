@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Daniel Dennett AI - Audio Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        #conversation {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 70%;
+        }
+        .user {
+            background-color: #e3f2fd;
+            margin-left: 30%;
+            align-self: flex-end;
+        }
+        .ai {
+            background-color: #f5f5f5;
+            margin-right: 30%;
+            align-self: flex-start;
+        }
+        #controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #2196f3;
+            color: white;
+            transition: background-color 0.3s;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        button:hover:not(:disabled) {
+            background-color: #1976d2;
+        }
+        #status {
+            color: #666;
+            font-style: italic;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .recording {
+            color: #f44336;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Daniel Dennett AI - Audio Chat</h1>
+    <div id="conversation"></div>
+    <div id="controls">
+        <button id="startBtn">Start Recording</button>
+        <button id="stopBtn" disabled>Stop Recording</button>
+        <span id="status">Not connected</span>
+    </div>
+
+    <script>
+        let ws;
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('status');
+        const conversation = document.getElementById('conversation');
+
+        // Connect to WebSocket with retry mechanism
+        async function connect() {
+            try {
+                ws = new WebSocket('ws://localhost:8000/ws');
+                
+                ws.onopen = () => {
+                    status.textContent = 'Connected';
+                    startBtn.disabled = false;
+                    reconnectAttempts = 0;
+                };
+
+                ws.onmessage = async (event) => {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'user_message') {
+                        // Display transcribed user message
+                        addMessage(data.text, 'user');
+                    } else if (data.type === 'response') {
+                        // Display AI response
+                        addMessage(data.text, 'ai');
+                        
+                        // Play audio response
+                        try {
+                            const audio = new Audio(`/get-response-audio/${data.audio_path}`);
+                            await audio.play();
+                        } catch (error) {
+                            console.error('Error playing audio:', error);
+                        }
+                    } else if (data.type === 'error') {
+                        console.error('Server error:', data.message);
+                        status.textContent = `Error: ${data.message}`;
+                    }
+                };
+
+                ws.onclose = () => {
+                    status.textContent = 'Disconnected';
+                    startBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    
+                    // Try to reconnect
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        status.textContent = `Reconnecting (attempt ${reconnectAttempts})...`;
+                        setTimeout(connect, 2000);
+                    } else {
+                        status.textContent = 'Connection failed. Please refresh the page.';
+                    }
+                };
+
+            } catch (error) {
+                console.error('Connection error:', error);
+                status.textContent = 'Connection failed';
+            }
+        }
+
+        // Start recording
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    audioChunks = [];
+                    
+                    // Send audio to server
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(await audioBlob.arrayBuffer());
+                        status.textContent = 'Processing...';
+                    } else {
+                        status.textContent = 'Connection lost. Please refresh the page.';
+                    }
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                status.textContent = 'Recording...';
+                status.classList.add('recording');
+
+            } catch (error) {
+                console.error('Recording error:', error);
+                status.textContent = 'Recording failed - Please check microphone permissions';
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                isRecording = false;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                status.textContent = 'Processing...';
+                status.classList.remove('recording');
+            }
+        }
+
+        // Add message to conversation
+        function addMessage(text, sender) {
+            const message = document.createElement('div');
+            message.className = `message ${sender}`;
+            message.textContent = text;
+            conversation.appendChild(message);
+            conversation.scrollTop = conversation.scrollHeight;
+        }
+
+        // Event listeners
+        startBtn.onclick = startRecording;
+        stopBtn.onclick = stopRecording;
+
+        // Connect on page load
+        connect();
+    </script>
+</body>
+</html> 

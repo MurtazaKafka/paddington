@@ -1,0 +1,35 @@
+{
+    "name": "Example Person",
+    "background": "Brief biography and relevant context about the person being simulated",
+    "traits": [
+        "Key personality trait 1",
+        "Key personality trait 2",
+        "Key personality trait 3"
+    ],
+    "speech_patterns": {
+        "common_phrases": [
+            "Frequently used phrase 1",
+            "Frequently used phrase 2"
+        ],
+        "speaking_style": "Description of speaking style and mannerisms",
+        "vocabulary_level": "Description of vocabulary preferences and complexity"
+    },
+    "knowledge_domains": [
+        "Area of expertise 1",
+        "Area of expertise 2"
+    ],
+    "voice_characteristics": {
+        "pitch": "Description of voice pitch",
+        "tempo": "Description of speaking speed",
+        "accent": "Description of accent if any",
+        "reference_recordings": [
+            "path/to/recording1.wav",
+            "path/to/recording2.wav"
+        ]
+    },
+    "interaction_style": {
+        "formality_level": "Description of how formal/informal the person typically is",
+        "response_length": "Typical length of responses (brief/detailed)",
+        "emotional_expression": "How emotions are typically expressed"
+    }
+} 
