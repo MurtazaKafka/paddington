@@ -81,10 +81,26 @@ class PersonalitySimulator:
         Transcribe audio input using Whisper
         """
         try:
+            # First check if ffmpeg is installed
+            import shutil
+            ffmpeg_path = shutil.which('ffmpeg')
+            if not ffmpeg_path:
+                logger.error("ffmpeg is not installed. It is required for audio transcription.")
+                # In a real system, we would fail here, but for demonstration
+                # let's return a placeholder message
+                return "This is a placeholder transcription since ffmpeg is not installed. Please install ffmpeg to enable actual transcription."
+            
             full_path = os.path.join(self.audio_dir, audio_path) if not os.path.isabs(audio_path) else audio_path
             result = self.whisper_model.transcribe(full_path)
             logger.info(f"Successfully transcribed audio: {result['text']}")
             return result["text"]
+        except FileNotFoundError as e:
+            if 'ffmpeg' in str(e):
+                logger.error("ffmpeg is not installed. It is required for audio transcription.")
+                return "This is a placeholder transcription since ffmpeg is not installed. Please install ffmpeg to enable actual transcription."
+            else:
+                logger.error(f"File not found error: {e}")
+                raise
         except Exception as e:
             logger.error(f"Error transcribing audio: {e}")
             raise
@@ -119,22 +135,30 @@ class PersonalitySimulator:
             logger.error(f"Error creating dummy audio: {e}")
             raise
 
-    def process_interaction(self, audio_input: bool = True, input_text: Optional[str] = None) -> Dict[str, Any]:
+    async def process_interaction(self, input_text: Optional[str] = None, audio_input: bool = False, audio_path: Optional[str] = None) -> Dict[str, Any]:
         """
         Process a complete interaction cycle
         """
         try:
             # Handle input
-            if audio_input:
+            if audio_input and audio_path:
+                # Directly transcribe the provided audio file
+                logger.info(f"Transcribing provided audio file: {audio_path}")
+                input_text = self.transcribe_audio(audio_path)
+            elif audio_input and not audio_path:
+                # Record audio if no path provided (simulation mode)
+                logger.info("No audio path provided, simulating recording")
                 audio_filename = self.record_audio()
                 input_text = self.transcribe_audio(audio_filename)
                 # Clean up the temporary audio file
                 try:
                     os.remove(os.path.join(self.audio_dir, audio_filename))
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to remove temporary audio file: {e}")
             elif input_text is None:
-                raise ValueError("Either audio_input must be True or input_text must be provided")
+                raise ValueError("Either audio_input must be True with a valid audio_path, or input_text must be provided")
+            
+            logger.info(f"Processing input text: {input_text}")
             
             # Generate response
             response_text = self.generate_response(input_text)
@@ -144,13 +168,16 @@ class PersonalitySimulator:
             audio_filename = f"response_{timestamp}.wav"
             audio_filename = self.synthesize_speech(response_text, audio_filename)
             
+            # Construct full URL for audio (this will be used by the client)
+            audio_url = f"/get-response-audio/{audio_filename}"
+            
             return {
                 "input_text": input_text,
-                "response_text": response_text,
-                "audio_path": audio_filename
+                "text": response_text,  # Changed from response_text to text for consistency
+                "audio_url": audio_url
             }
         except Exception as e:
-            logger.error(f"Error in interaction: {e}")
+            logger.error(f"Error in interaction: {e}", exc_info=True)
             raise
 
     def generate_response(self, input_text: str) -> str:

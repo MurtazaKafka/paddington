@@ -1,0 +1,25 @@
+{
+  "downloads": [
+    {
+      "url": "http://traffic.libsyn.com/philosophybites/Daniel_Dennett_on_Free_Will_Worth_Wanting.mp3",
+      "filename": "data/voice_samples/downloads/philosophy_bites_Daniel_Dennett_on_Free_Will_Worth_Wanting.mp3",
+      "downloaded_at": "2025-04-02 04:08:27",
+      "size_bytes": 9539544
+    },
+    {
+      "url": "http://traffic.libsyn.com/philosophybites/Daniel_Dennett_on_the_Chinese_Room.mp3",
+      "filename": "data/voice_samples/downloads/philosophy_bites_Daniel_Dennett_on_the_Chinese_Room.mp3",
+      "downloaded_at": "2025-04-02 04:08:30",
+      "size_bytes": 10031223
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=EJsD-3jtXz0",
+      "filename": "data/voice_samples/downloads/Tools_To_Transform_Our_Thinking.wav",
+      "downloaded_at": "2025-04-02 04:13:18",
+      "size_bytes": 908560870,
+      "source": "youtube",
+      "video_id": "EJsD-3jtXz0"
+    }
+  ],
+  "last_updated": "2025-04-02 04:21:08"
+}

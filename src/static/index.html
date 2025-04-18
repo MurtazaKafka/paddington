@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Daniel Dennett AI - Audio Chat</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Chat</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -10,208 +12,352 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
-        #conversation {
-            border: 1px solid #ccc;
-            padding: 10px;
-            height: 400px;
-            overflow-y: auto;
-            margin-bottom: 20px;
+        .container {
             background-color: white;
+            padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.recording {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .status.connected {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status.error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .audio-level {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .audio-level-bar {
+            height: 100%;
+            background-color: #4caf50;
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+        .messages {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
         .message {
             margin: 10px 0;
             padding: 10px;
-            border-radius: 8px;
-            max-width: 70%;
-        }
-        .user {
-            background-color: #e3f2fd;
-            margin-left: 30%;
-            align-self: flex-end;
-        }
-        .ai {
-            background-color: #f5f5f5;
-            margin-right: 30%;
-            align-self: flex-start;
-        }
-        #controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-top: 20px;
-        }
-        button {
-            padding: 12px 24px;
-            font-size: 16px;
-            cursor: pointer;
-            border: none;
-            border-radius: 8px;
-            background-color: #2196f3;
-            color: white;
-            transition: background-color 0.3s;
-        }
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        button:hover:not(:disabled) {
-            background-color: #1976d2;
-        }
-        #status {
-            color: #666;
-            font-style: italic;
-            padding: 8px;
             border-radius: 4px;
         }
-        .recording {
-            color: #f44336;
-            font-weight: bold;
+        .message.user {
+            background-color: #e3f2fd;
+            margin-left: 20%;
+        }
+        .message.ai {
+            background-color: #f5f5f5;
+            margin-right: 20%;
         }
     </style>
 </head>
 <body>
-    <h1>Daniel Dennett AI - Audio Chat</h1>
-    <div id="conversation"></div>
-    <div id="controls">
-        <button id="startBtn">Start Recording</button>
-        <button id="stopBtn" disabled>Stop Recording</button>
-        <span id="status">Not connected</span>
+    <div class="container">
+        <h1>Voice Chat</h1>
+        
+        <div class="status" id="connection-status">Connecting...</div>
+        <div class="status" id="recording-status"></div>
+        
+        <div class="audio-level">
+            <div class="audio-level-bar" id="audio-level-bar"></div>
+        </div>
+        
+        <div class="controls">
+            <button id="start-button" disabled>Start Recording</button>
+            <button id="stop-button" disabled>Stop Recording</button>
+        </div>
+        
+        <div class="messages" id="messages"></div>
     </div>
 
     <script>
-        let ws;
         let mediaRecorder;
         let audioChunks = [];
+        let audioContext;
+        let analyser;
+        let dataArray;
+        let websocket;
         let isRecording = false;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
-
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const status = document.getElementById('status');
-        const conversation = document.getElementById('conversation');
-
-        // Connect to WebSocket with retry mechanism
-        async function connect() {
-            try {
-                ws = new WebSocket('ws://localhost:8000/ws');
-                
-                ws.onopen = () => {
-                    status.textContent = 'Connected';
-                    startBtn.disabled = false;
-                    reconnectAttempts = 0;
-                };
-
-                ws.onmessage = async (event) => {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'user_message') {
-                        // Display transcribed user message
-                        addMessage(data.text, 'user');
-                    } else if (data.type === 'response') {
-                        // Display AI response
-                        addMessage(data.text, 'ai');
-                        
-                        // Play audio response
-                        try {
-                            const audio = new Audio(`/get-response-audio/${data.audio_path}`);
-                            await audio.play();
-                        } catch (error) {
-                            console.error('Error playing audio:', error);
-                        }
-                    } else if (data.type === 'error') {
-                        console.error('Server error:', data.message);
-                        status.textContent = `Error: ${data.message}`;
+        
+        // WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = () => {
+                document.getElementById('connection-status').textContent = 'Connected';
+                document.getElementById('connection-status').className = 'status connected';
+                document.getElementById('start-button').disabled = false;
+            };
+            
+            websocket.onclose = () => {
+                document.getElementById('connection-status').textContent = 'Disconnected';
+                document.getElementById('connection-status').className = 'status error';
+                document.getElementById('start-button').disabled = true;
+                document.getElementById('stop-button').disabled = true;
+            };
+            
+            websocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                document.getElementById('connection-status').textContent = 'Connection error';
+                document.getElementById('connection-status').className = 'status error';
+            };
+            
+            websocket.onmessage = (event) => {
+                const response = JSON.parse(event.data);
+                if (response.error) {
+                    addMessage('Error: ' + response.error, 'error');
+                } else {
+                    addMessage(response.text, 'ai');
+                    if (response.audio_url) {
+                        playAudio(response.audio_url);
                     }
-                };
-
-                ws.onclose = () => {
-                    status.textContent = 'Disconnected';
-                    startBtn.disabled = true;
-                    stopBtn.disabled = true;
-                    
-                    // Try to reconnect
-                    if (reconnectAttempts < maxReconnectAttempts) {
-                        reconnectAttempts++;
-                        status.textContent = `Reconnecting (attempt ${reconnectAttempts})...`;
-                        setTimeout(connect, 2000);
-                    } else {
-                        status.textContent = 'Connection failed. Please refresh the page.';
-                    }
-                };
-
-            } catch (error) {
-                console.error('Connection error:', error);
-                status.textContent = 'Connection failed';
-            }
+                }
+            };
         }
-
-        // Start recording
-        async function startRecording() {
+        
+        // Audio recording setup
+        async function setupAudio() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
+                const audioTrack = stream.getAudioTracks()[0];
+                console.log('Audio track obtained:', audioTrack.label);
+                
+                // Set up audio analysis
+                audioContext = new AudioContext();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 256;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                
+                // Set up MediaRecorder
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
                 
                 mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    audioChunks = [];
-                    
-                    // Send audio to server
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(await audioBlob.arrayBuffer());
-                        status.textContent = 'Processing...';
-                    } else {
-                        status.textContent = 'Connection lost. Please refresh the page.';
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        console.log('Recorded chunk:', event.data.size, 'bytes');
                     }
                 };
-
-                mediaRecorder.start();
-                isRecording = true;
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-                status.textContent = 'Recording...';
-                status.classList.add('recording');
-
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
+                    console.log('Audio blob created with MIME type:', audioBlob.type);
+                    console.log('Audio blob size:', audioBlob.size, 'bytes');
+                    
+                    // Create a file from the blob
+                    const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm;codecs=opus' });
+                    console.log('Appended audio file:', audioFile.name);
+                    
+                    // Play the recorded audio locally for debugging
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+                    console.log('Playing recorded audio locally for debugging');
+                    audio.play();
+                    
+                    // Send the audio file to the server
+                    console.log('Sending audio file to server');
+                    await sendAudioFile(audioFile);
+                    
+                    // Clean up
+                    URL.revokeObjectURL(audioUrl);
+                    audioChunks = [];
+                };
+                
+                // Start audio level monitoring
+                updateAudioLevel();
+                
             } catch (error) {
-                console.error('Recording error:', error);
-                status.textContent = 'Recording failed - Please check microphone permissions';
+                console.error('Error setting up audio:', error);
+                addMessage('Error setting up audio: ' + error.message, 'error');
             }
         }
-
-        // Stop recording
-        function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                mediaRecorder.stream.getTracks().forEach(track => track.stop());
-                isRecording = false;
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
-                status.textContent = 'Processing...';
-                status.classList.remove('recording');
+        
+        // Update audio level visualization
+        function updateAudioLevel() {
+            if (!analyser || !dataArray) return;
+            
+            analyser.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            const level = (average / 128) * 100; // Convert to percentage
+            
+            document.getElementById('audio-level-bar').style.width = level + '%';
+            console.log('Audio level:', level);
+            
+            requestAnimationFrame(updateAudioLevel);
+        }
+        
+        // Send audio file to server
+        async function sendAudioFile(file) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/upload-audio', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('Server response:', result);
+                
+                if (result.error) {
+                    addMessage('Error: ' + result.error, 'error');
+                } else {
+                    addMessage(result.text, 'ai');
+                    if (result.audio_url) {
+                        // Make sure we use the exact URL returned by the server
+                        playAudio(result.audio_url);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error sending audio file:', error);
+                addMessage('Error sending audio file: ' + error.message, 'error');
             }
         }
-
-        // Add message to conversation
-        function addMessage(text, sender) {
-            const message = document.createElement('div');
-            message.className = `message ${sender}`;
-            message.textContent = text;
-            conversation.appendChild(message);
-            conversation.scrollTop = conversation.scrollHeight;
+        
+        // Play audio response
+        function playAudio(url) {
+            console.log('Playing audio from URL:', url);
+            
+            // Make sure URL is properly formatted
+            if (!url.startsWith('http') && !url.startsWith('/')) {
+                url = '/' + url;
+            }
+            
+            // Create full URL
+            const fullUrl = new URL(url, window.location.origin).href;
+            console.log('Full audio URL:', fullUrl);
+            
+            const audio = new Audio(fullUrl);
+            
+            // Add event listeners for debugging
+            audio.onloadstart = () => console.log('Audio loading started');
+            audio.oncanplay = () => console.log('Audio can now play');
+            audio.onplay = () => console.log('Audio playback started');
+            audio.onended = () => console.log('Audio playback ended');
+            audio.onerror = (e) => {
+                console.error('Error playing audio:', e);
+                console.error('Error code:', audio.error ? audio.error.code : 'unknown');
+                addMessage(`Error playing audio. Please try again.`, 'error');
+            };
+            
+            // Play the audio and handle errors
+            audio.play().catch(error => {
+                console.error('Error playing audio:', error);
+                addMessage('Error playing audio: ' + error.message, 'error');
+                
+                // Try alternative approach
+                addMessage('Trying alternative playback method...', 'status');
+                fetch(fullUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const blobUrl = URL.createObjectURL(blob);
+                        const audio2 = new Audio(blobUrl);
+                        audio2.onended = () => URL.revokeObjectURL(blobUrl);
+                        return audio2.play();
+                    })
+                    .catch(error => {
+                        console.error('Alternative playback failed:', error);
+                        addMessage('Alternative playback failed: ' + error.message, 'error');
+                    });
+            });
         }
-
+        
+        // Add message to chat
+        function addMessage(text, type) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = text;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
         // Event listeners
-        startBtn.onclick = startRecording;
-        stopBtn.onclick = stopRecording;
-
-        // Connect on page load
-        connect();
+        document.getElementById('start-button').addEventListener('click', () => {
+            if (!isRecording) {
+                audioChunks = [];
+                mediaRecorder.start(1000); // Collect data every second
+                isRecording = true;
+                document.getElementById('start-button').disabled = true;
+                document.getElementById('stop-button').disabled = false;
+                document.getElementById('recording-status').textContent = 'Recording...';
+                document.getElementById('recording-status').className = 'status recording';
+            }
+        });
+        
+        document.getElementById('stop-button').addEventListener('click', () => {
+            if (isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.getElementById('start-button').disabled = false;
+                document.getElementById('stop-button').disabled = true;
+                document.getElementById('recording-status').textContent = '';
+                document.getElementById('recording-status').className = 'status';
+            }
+        });
+        
+        // Initialize
+        connectWebSocket();
+        setupAudio();
     </script>
 </body>
 </html> 

@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paddington - AI Voice Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --primary-hover: #3a5a8f;
+            --secondary-color: #e8ecef;
+            --text-color: #333333;
+            --background-color: #f8f9fa;
+            --card-background: #ffffff;
+            --border-color: #dee2e6;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            line-height: 1.6;
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 1rem;
+        }
+        
+        .app-container {
+            background-color: var(--card-background);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        
+        .header {
+            padding: 1.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .description {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            padding: 1.5rem;
+        }
+        
+        .status-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+        }
+        
+        .status.connecting {
+            background-color: var(--warning-color);
+            color: #856404;
+        }
+        
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status.recording {
+            background-color: #f8d7da;
+            color: #721c24;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status.processing {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+        
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-icon {
+            margin-right: 0.5rem;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .status-icon.connecting {
+            background-color: var(--warning-color);
+        }
+        
+        .status-icon.connected {
+            background-color: var(--success-color);
+        }
+        
+        .status-icon.recording {
+            background-color: var(--error-color);
+        }
+        
+        .status-icon.processing {
+            background-color: var(--info-color);
+        }
+        
+        .status-icon.error {
+            background-color: var(--error-color);
+        }
+        
+        .audio-level {
+            height: 40px;
+            background-color: var(--secondary-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin: 1rem 0;
+            position: relative;
+        }
+        
+        .audio-level-bar {
+            height: 100%;
+            background-color: var(--primary-color);
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius);
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            font-size: 0.95rem;
+            min-width: 120px;
+        }
+        
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        button:disabled {
+            background-color: var(--border-color);
+            color: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .messages {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            background-color: var(--secondary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: var(--radius);
+            max-width: 80%;
+            word-break: break-word;
+        }
+        
+        .message.user {
+            background-color: #e3f2fd;
+            margin-left: auto;
+            border-bottom-right-radius: 0;
+        }
+        
+        .message.ai {
+            background-color: var(--card-background);
+            margin-right: auto;
+            border-bottom-left-radius: 0;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            margin: 0 auto;
+        }
+        
+        .message.status {
+            background-color: #e2e3e5;
+            color: #383d41;
+            margin: 0 auto;
+            font-style: italic;
+            text-align: center;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.25rem;
+            height: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            opacity: 0.6;
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); } 
+            40% { transform: scale(1); }
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+        
+        .footer {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 2rem;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .reconnect-btn {
+            background-color: var(--warning-color);
+            color: #000;
+            margin-top: 1rem;
+        }
+        
+        .reconnect-btn:hover {
+            background-color: #e0a800;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                margin: 0;
+                padding: 0;
+                max-width: 100%;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .app-container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                border-radius: 0;
+            }
+            
+            .main-content {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .messages {
+                flex: 1;
+                max-height: none;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-container">
+            <div class="header">
+                <h1>Paddington Voice Assistant</h1>
+                <div class="description">Your AI voice companion powered by advanced language models</div>
+            </div>
+            
+            <div class="main-content">
+                <div class="status-container">
+                    <div class="status connecting" id="connection-status">
+                        <div class="status-icon connecting"></div>
+                        Connecting to server...
+                    </div>
+                    <div class="status recording hidden" id="recording-status">
+                        <div class="status-icon recording"></div>
+                        Recording in progress...
+                    </div>
+                    <div class="status processing hidden" id="processing-status">
+                        <div class="status-icon processing"></div>
+                        Processing your message...
+                    </div>
+                </div>
+                
+                <div class="audio-level">
+                    <div class="audio-level-bar" id="audio-level-bar"></div>
+                </div>
+                
+                <div class="controls">
+                    <button id="start-button" disabled>Start Recording</button>
+                    <button id="stop-button" disabled>Stop Recording</button>
+                </div>
+                
+                <div class="messages" id="messages"></div>
+                
+                <div class="typing-indicator hidden" id="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            &copy; 2023 Paddington AI Voice Assistant
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioContext;
+        let analyser;
+        let dataArray;
+        let websocket;
+        let isRecording = false;
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 5;
+        let reconnectDelay = 2000; // Start with 2 seconds
+        let microphoneStream;
+        
+        // DOM Elements
+        const connectionStatus = document.getElementById('connection-status');
+        const recordingStatus = document.getElementById('recording-status');
+        const processingStatus = document.getElementById('processing-status');
+        const startButton = document.getElementById('start-button');
+        const stopButton = document.getElementById('stop-button');
+        const audioLevelBar = document.getElementById('audio-level-bar');
+        const messagesContainer = document.getElementById('messages');
+        const typingIndicator = document.getElementById('typing-indicator');
+        
+        // WebSocket connection
+        function connectWebSocket() {
+            reconnectAttempts++;
+            
+            // Update connection status
+            connectionStatus.className = "status connecting";
+            connectionStatus.innerHTML = `<div class="status-icon connecting"></div>Connecting to server (attempt ${reconnectAttempts})...`;
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            console.log(`Connecting to WebSocket at ${wsUrl}`);
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = () => {
+                connectionStatus.className = "status connected";
+                connectionStatus.innerHTML = '<div class="status-icon connected"></div>Connected to server';
+                startButton.disabled = false;
+                
+                // Reset reconnection variables
+                reconnectAttempts = 0;
+                reconnectDelay = 2000;
+                
+                addMessage("I'm ready to chat. Click 'Start Recording' and speak to me!", 'status');
+                
+                // Remove any reconnect button
+                const reconnectBtn = document.getElementById('reconnect-btn');
+                if (reconnectBtn) {
+                    reconnectBtn.remove();
+                }
+            };
+            
+            websocket.onclose = (event) => {
+                // Check if the connection was never established (event.code 1006)
+                if (event.code === 1006 && reconnectAttempts === 1) {
+                    connectionStatus.className = "status error";
+                    connectionStatus.innerHTML = '<div class="status-icon error"></div>Connection failed';
+                    console.error('WebSocket connection failed initially');
+                } else {
+                    connectionStatus.className = "status error";
+                    connectionStatus.innerHTML = '<div class="status-icon error"></div>Disconnected from server';
+                    console.error('WebSocket connection closed', event);
+                }
+                
+                startButton.disabled = true;
+                stopButton.disabled = true;
+                
+                // Stop recording if active
+                if (isRecording) {
+                    stopRecording();
+                }
+                
+                // Add a reconnect button if we haven't exceeded the max attempts
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    // Attempt to reconnect with exponential backoff
+                    setTimeout(() => {
+                        if (document.getElementById('reconnect-btn') === null) {
+                            // Only add the message if we don't have a reconnect button already
+                            addMessage(`Connection lost. Attempting to reconnect (${reconnectAttempts}/${maxReconnectAttempts})...`, 'error');
+                        }
+                        connectWebSocket();
+                    }, reconnectDelay);
+                    
+                    // Exponential backoff (max 30 seconds)
+                    reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
+                } else {
+                    addMessage('Could not reconnect to the server after multiple attempts. Please reload the page.', 'error');
+                    
+                    // Add manual reconnect button
+                    if (document.getElementById('reconnect-btn') === null) {
+                        const btn = document.createElement('button');
+                        btn.id = 'reconnect-btn';
+                        btn.className = 'reconnect-btn';
+                        btn.textContent = 'Try Again';
+                        btn.onclick = () => {
+                            reconnectAttempts = 0;
+                            reconnectDelay = 2000;
+                            btn.remove();
+                            connectWebSocket();
+                        };
+                        document.querySelector('.controls').appendChild(btn);
+                    }
+                }
+            };
+            
+            websocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                connectionStatus.className = "status error";
+                connectionStatus.innerHTML = '<div class="status-icon error"></div>Connection error';
+            };
+            
+            websocket.onmessage = (event) => {
+                console.log('Received message:', event.data);
+                
+                try {
+                    const response = JSON.parse(event.data);
+                    
+                    // Handle different message types
+                    if (response.type === 'status') {
+                        if (response.status === 'processing') {
+                            processingStatus.classList.remove('hidden');
+                            typingIndicator.classList.remove('hidden');
+                        }
+                    } else if (response.type === 'error') {
+                        addMessage(response.text || 'An error occurred', 'error');
+                        processingStatus.classList.add('hidden');
+                        typingIndicator.classList.add('hidden');
+                    } else if (response.type === 'response' || !response.type) {
+                        // Hide processing indicators
+                        processingStatus.classList.add('hidden');
+                        typingIndicator.classList.add('hidden');
+                        
+                        // Add AI message
+                        if (response.text) {
+                            addMessage(response.text, 'ai');
+                        }
+                        
+                        // Play audio if available
+                        if (response.audio_url) {
+                            playAudio(response.audio_url);
+                        }
+                        
+                        // Show processing time if available
+                        if (response.processing_time) {
+                            console.log(`Processing time: ${response.processing_time}s`);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                    addMessage('Error processing server message', 'error');
+                }
+            };
+        }
+        
+        // Audio recording setup
+        async function setupAudio() {
+            try {
+                microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const audioTrack = microphoneStream.getAudioTracks()[0];
+                console.log('Audio track obtained:', audioTrack.label);
+                
+                // Set up audio analysis
+                audioContext = new AudioContext();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(microphoneStream);
+                source.connect(analyser);
+                analyser.fftSize = 256;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                
+                // Set up MediaRecorder with options
+                const options = { 
+                    mimeType: 'audio/webm;codecs=opus',
+                    audioBitsPerSecond: 128000
+                };
+                
+                try {
+                    mediaRecorder = new MediaRecorder(microphoneStream, options);
+                    console.log('MediaRecorder created with options:', options);
+                } catch (e) {
+                    console.warn('Failed to create MediaRecorder with codec opus, trying without codec specification');
+                    mediaRecorder = new MediaRecorder(microphoneStream);
+                }
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        console.log('Recorded chunk:', event.data.size, 'bytes');
+                    }
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    if (audioChunks.length === 0) {
+                        console.warn('No audio data recorded');
+                        addMessage('No audio was recorded. Please try again.', 'error');
+                        return;
+                    }
+                    
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
+                    console.log('Audio blob created with MIME type:', audioBlob.type);
+                    console.log('Audio blob size:', audioBlob.size, 'bytes');
+                    
+                    if (audioBlob.size < 100) {
+                        console.warn('Audio blob is too small, might be empty');
+                        addMessage('Audio recording was too short. Please try again.', 'error');
+                        return;
+                    }
+                    
+                    // Show processing status
+                    processingStatus.classList.remove('hidden');
+                    typingIndicator.classList.remove('hidden');
+                    
+                    // Create a file from the blob
+                    const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm;codecs=opus' });
+                    console.log('Audio file created:', audioFile.name);
+                    
+                    // Verify WebSocket connection before sending
+                    if (websocket && websocket.readyState === WebSocket.OPEN) {
+                        // Send raw audio data over WebSocket
+                        console.log('Sending audio data via WebSocket');
+                        websocket.send(audioBlob);
+                    } else {
+                        console.error('WebSocket not connected, using HTTP fallback');
+                        // Fallback to HTTP API
+                        await sendAudioFile(audioFile);
+                    }
+                    
+                    // Clean up
+                    audioChunks = [];
+                };
+                
+                // Start audio level monitoring
+                updateAudioLevel();
+                
+                return true;
+                
+            } catch (error) {
+                console.error('Error setting up audio:', error);
+                addMessage(`Error setting up audio: ${error.message}. Please ensure your microphone is connected and you've granted permission to use it.`, 'error');
+                return false;
+            }
+        }
+        
+        // Update audio level visualization
+        function updateAudioLevel() {
+            if (!analyser || !dataArray) return;
+            
+            analyser.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+            const level = Math.min((average / 128) * 100, 100); // Convert to percentage with cap at 100%
+            
+            audioLevelBar.style.width = level + '%';
+            
+            requestAnimationFrame(updateAudioLevel);
+        }
+        
+        // Start recording
+        function startRecording() {
+            if (!mediaRecorder || isRecording) return;
+            
+            try {
+                audioChunks = [];
+                mediaRecorder.start(1000); // Collect data every second
+                isRecording = true;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                recordingStatus.classList.remove('hidden');
+                
+                console.log('Recording started');
+                // Add a user message placeholder
+                addMessage('Recording...', 'user recording-placeholder');
+            } catch (e) {
+                console.error('Error starting recording:', e);
+                addMessage(`Error starting recording: ${e.message}`, 'error');
+            }
+        }
+        
+        // Stop recording
+        function stopRecording() {
+            if (!mediaRecorder || !isRecording) return;
+            
+            try {
+                mediaRecorder.stop();
+                isRecording = false;
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                recordingStatus.classList.add('hidden');
+                
+                console.log('Recording stopped');
+                
+                // Update placeholder
+                const placeholder = document.querySelector('.recording-placeholder');
+                if (placeholder) {
+                    placeholder.classList.remove('recording-placeholder');
+                    placeholder.textContent = 'You said something...';
+                }
+            } catch (e) {
+                console.error('Error stopping recording:', e);
+                addMessage(`Error stopping recording: ${e.message}`, 'error');
+            }
+        }
+        
+        // Send audio file to server
+        async function sendAudioFile(file) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                addMessage('Sending audio to server...', 'status');
+                
+                const response = await fetch('/upload-audio', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('Server response:', result);
+                
+                // Hide processing indicators
+                processingStatus.classList.add('hidden');
+                typingIndicator.classList.add('hidden');
+                
+                if (result.error) {
+                    addMessage('Error: ' + result.error, 'error');
+                } else {
+                    // Update the user message placeholder
+                    const placeholder = document.querySelector('.recording-placeholder');
+                    if (placeholder) {
+                        // Replace the placeholder with the transcription if available
+                        if (result.transcription) {
+                            placeholder.textContent = result.transcription;
+                        } else {
+                            placeholder.textContent = 'You said something...';
+                        }
+                        placeholder.classList.remove('recording-placeholder');
+                    }
+                    
+                    addMessage(result.text, 'ai');
+                    if (result.audio_url) {
+                        playAudio(result.audio_url);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error sending audio file:', error);
+                addMessage('Error sending audio file: ' + error.message, 'error');
+                
+                // Hide processing indicators
+                processingStatus.classList.add('hidden');
+                typingIndicator.classList.add('hidden');
+            }
+        }
+        
+        // Play audio response
+        function playAudio(url) {
+            console.log('Playing audio from URL:', url);
+            
+            // Make sure URL is properly formatted
+            if (!url.startsWith('http') && !url.startsWith('/')) {
+                url = '/' + url;
+            }
+            
+            // Create full URL
+            const fullUrl = new URL(url, window.location.origin).href;
+            console.log('Full audio URL:', fullUrl);
+            
+            const audio = new Audio(fullUrl);
+            
+            // Add event listeners for debugging
+            audio.onloadstart = () => console.log('Audio loading started');
+            audio.oncanplay = () => console.log('Audio can now play');
+            audio.onplay = () => console.log('Audio playback started');
+            audio.onended = () => console.log('Audio playback ended');
+            audio.onerror = (e) => {
+                console.error('Error playing audio:', e);
+                console.error('Error code:', audio.error ? audio.error.code : 'unknown');
+                addMessage(`Error playing audio. Please try again.`, 'error');
+            };
+            
+            // Play the audio and handle errors
+            audio.play().catch(error => {
+                console.error('Error playing audio:', error);
+                addMessage('Error playing audio: ' + error.message, 'error');
+                
+                // Try alternative approach
+                addMessage('Trying alternative playback method...', 'status');
+                fetch(fullUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const blobUrl = URL.createObjectURL(blob);
+                        const audio2 = new Audio(blobUrl);
+                        audio2.onended = () => URL.revokeObjectURL(blobUrl);
+                        return audio2.play();
+                    })
+                    .catch(error => {
+                        console.error('Alternative playback failed:', error);
+                        addMessage('Alternative playback failed: ' + error.message, 'error');
+                    });
+            });
+        }
+        
+        // Add message to chat
+        function addMessage(text, type) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = text;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            return messageDiv;
+        }
+        
+        // Event listeners
+        startButton.addEventListener('click', startRecording);
+        stopButton.addEventListener('click', stopRecording);
+        
+        // Initialize
+        connectWebSocket();
+        setupAudio().then(success => {
+            if (!success) {
+                connectionStatus.className = "status error";
+                connectionStatus.innerHTML = '<div class="status-icon error"></div>Microphone not available';
+                startButton.disabled = true;
+            }
+        });
+    </script>
+</body>
+</html> 

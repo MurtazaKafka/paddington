@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Recording Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #e8e8e8;
+            border-radius: 4px;
+        }
+        #response {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: white;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Audio Recording Test</h1>
+    <div id="status">Ready to record</div>
+    <div>
+        <button id="startBtn">Start Recording</button>
+        <button id="stopBtn" disabled>Stop Recording</button>
+    </div>
+    <div id="response"></div>
+
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('status');
+        const response = document.getElementById('response');
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let stream;
+
+        // Start recording
+        startBtn.addEventListener('click', async () => {
+            try {
+                status.textContent = 'Requesting microphone access...';
+                
+                // Get microphone access
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Find supported audio MIME type
+                let mimeType = 'audio/webm';
+                if (MediaRecorder.isTypeSupported('audio/webm')) {
+                    mimeType = 'audio/webm';
+                } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                    mimeType = 'audio/ogg';
+                } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    mimeType = 'audio/mp4';
+                }
+                
+                console.log(`Using MIME type: ${mimeType}`);
+                
+                // Create recorder
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
+                audioChunks = [];
+                
+                // Handle data
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        console.log(`Recorded chunk: ${event.data.size} bytes`);
+                    }
+                };
+                
+                // Start recording
+                mediaRecorder.start(1000);
+                status.textContent = 'Recording... (speak now)';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                status.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // Stop recording
+        stopBtn.addEventListener('click', async () => {
+            if (!mediaRecorder) {
+                status.textContent = 'No recording in progress';
+                return;
+            }
+            
+            status.textContent = 'Stopping recording...';
+            
+            // Create a promise to wait for recorder to stop
+            const recorderStopped = new Promise(resolve => {
+                mediaRecorder.onstop = async () => {
+                    // Create blob
+                    const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                    console.log(`Audio blob size: ${audioBlob.size} bytes`);
+                    
+                    // Play audio locally
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+                    audio.controls = true;
+                    
+                    // Show the audio in the response div
+                    response.innerHTML = '<p>Your recording:</p>';
+                    response.appendChild(audio);
+                    
+                    // Upload to server
+                    if (audioBlob.size > 0) {
+                        try {
+                            status.textContent = 'Uploading to server...';
+                            
+                            // Create form data
+                            const formData = new FormData();
+                            const extension = mediaRecorder.mimeType.includes('webm') ? '.webm' : 
+                                mediaRecorder.mimeType.includes('ogg') ? '.ogg' : '.mp4';
+                            
+                            formData.append('audio', audioBlob, 'recording' + extension);
+                            
+                            // Send to server
+                            const serverResponse = await fetch('/upload-audio', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            
+                            if (!serverResponse.ok) {
+                                throw new Error(`Server returned ${serverResponse.status}: ${serverResponse.statusText}`);
+                            }
+                            
+                            // Process response
+                            const data = await serverResponse.json();
+                            status.textContent = 'Server response received!';
+                            
+                            // Display results
+                            let resultHtml = '<p><strong>Results:</strong></p>';
+                            resultHtml += `<p>You said: "${data.transcribed_text}"</p>`;
+                            resultHtml += `<p>AI response: "${data.response_text}"</p>`;
+                            
+                            // Add audio player if there's an audio URL
+                            if (data.audio_url) {
+                                resultHtml += '<p>AI audio response:</p>';
+                                const aiAudio = document.createElement('audio');
+                                aiAudio.src = data.audio_url;
+                                aiAudio.controls = true;
+                                
+                                response.innerHTML = resultHtml;
+                                response.appendChild(aiAudio);
+                            } else {
+                                response.innerHTML = resultHtml;
+                            }
+                            
+                        } catch (error) {
+                            console.error('Upload error:', error);
+                            status.textContent = `Error: ${error.message}`;
+                            response.innerHTML += `<p style="color: red">Error: ${error.message}</p>`;
+                        }
+                    }
+                    
+                    resolve();
+                };
+            });
+            
+            // Stop recorder and tracks
+            mediaRecorder.stop();
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Wait for processing to complete
+            await recorderStopped;
+            
+            // Reset UI
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+    </script>
+</body>
+</html> 
